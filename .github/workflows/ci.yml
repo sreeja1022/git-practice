@@ -29,5 +29,13 @@ jobs:
           fi
           echo "Test passed!"
 
+      - name: Check secret
+        run: |
+          if [ -z "${{ secrets.TEST_SECRET }}" ]; then
+            echo "Secret is missing"
+            exit 1
+          fi
+          echo "Secret is available"
+
       - name: Build Docker image
         run: docker build -t git-practice-app .
