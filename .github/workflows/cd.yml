@@ -15,11 +15,12 @@ jobs:
       - name: Build Docker image
         run: docker build -t git-practice-app .
 
-      - name: Run Docker container
-        run: docker run -d --name git-practice-container git-practice-app
-
       - name: Test application
-        run: docker exec git-practice-container python app.py
-
-      - name: Stop Docker container
-        run: docker stop git-practice-container
+        run: |
+          output=$(docker run --rm git-practice-app)
+          echo "Output was: $output"
+          if [ "$output" != "Hello from CI/CD!" ]; then
+            echo "Application test failed"
+            exit 1
+          fi
+          echo "Application test passed!"
