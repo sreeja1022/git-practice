@@ -19,6 +19,12 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install Ruff
+        run: python -m pip install ruff
+
+      - name: Static code analysis with Ruff
+        run: ruff check .
+
       - name: Run test
         run: |
           output=$(python app.py)
