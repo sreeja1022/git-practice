@@ -46,6 +46,15 @@ jobs:
       - name: Build Docker image
         run: docker build -t git-practice-app .
 
+      - name: Scan Docker image with Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: 'git-practice-app:latest'
+          format: 'table'
+          severity: 'HIGH,CRITICAL'
+          ignore-unfixed: true
+          exit-code: '0'
+
   codeql-analysis:
     name: CodeQL Static Analysis
     runs-on: ubuntu-latest
