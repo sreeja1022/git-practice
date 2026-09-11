@@ -32,13 +32,19 @@ jobs:
       - name: Run test
         run: |
           output=$(python app.py)
-          echo "Output was: $output"
+          echo "Output was: $output" | tee test-report.txt
           if [ "$output" != "Hello from CI/CD!" ]; then
-            echo "Test failed: unexpected output"
+            echo "Test failed: unexpected output" | tee -a test-report.txt
             exit 1
           fi
-          echo "Test passed!"
+          echo "Test passed!" | tee -a test-report.txt
 
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-report-${{ github.run_id }}
+          path: test-report.txt
       - name: Check secret
         run: |
           if [ -z "${{ secrets.TEST_SECRET }}" ]; then
@@ -58,6 +64,15 @@ jobs:
           severity: 'HIGH,CRITICAL'
           ignore-unfixed: true
           exit-code: '1'
+
+      - name: Save scanned Docker image
+        run: docker save git-practice-app:latest -o git-practice-app.tar
+
+      - name: Upload Docker image artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: docker-image-${{ github.run_id }}
+          path: git-practice-app.tar
 
       - name: Login to Docker Hub
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
