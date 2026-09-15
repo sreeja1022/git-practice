@@ -101,6 +101,36 @@ jobs:
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/git-practice:${{ github.sha }}
           docker push ghcr.io/${{ github.repository_owner }}/git-practice:${{ github.sha }}
 
+  storage-sync:
+    name: Sync Build to Mounted Storage
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: [self-hosted, Linux, X64, storage]
+
+    steps:
+      - name: Download Docker image artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: docker-image-${{ github.run_id }}
+          path: /tmp/docker-artifact-${{ github.run_id }}
+
+      - name: Sync build to mounted storage
+        run: |
+          target="/mnt/ci-storage/${{ github.sha }}"
+          test -w /mnt/ci-storage || { echo "Mounted storage is not writable"; exit 1; }
+          mkdir -p "$target"
+          source_sum=$(sha256sum /tmp/docker-artifact-${{ github.run_id }}/git-practice-app.tar | awk '{print $1}')
+          cp /tmp/docker-artifact-${{ github.run_id }}/git-practice-app.tar "$target/"
+          target_sum=$(sha256sum "$target/git-practice-app.tar" | awk '{print $1}')
+          test "$source_sum" = "$target_sum"
+          echo "Checksum verified: $target_sum"
+          echo "${{ github.sha }}" > "$target/commit-sha.txt"
+          ls -lh "$target"
+
+      - name: Clean temporary artifact files
+        if: always()
+        run: rm -rf /tmp/docker-artifact-${{ github.run_id }}
+
   codeql-analysis:
     name: CodeQL Static Analysis
     runs-on: ubuntu-latest
