@@ -1,26 +1,47 @@
 name: CD
 
 on:
-  push:
-    branches: [ master ]
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'master'
+
+    runs-on: [self-hosted, Linux, X64, storage]
 
     steps:
-      - name: Checkout code
+      - name: Checkout exact CI commit
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
-      - name: Build Docker image
-        run: docker build -t git-practice-app .
-
-      - name: Test application
+      - name: Prepare Kubernetes deployment
         run: |
-          output=$(docker run --rm git-practice-app)
-          echo "Output was: $output"
-          if [ "$output" != "Hello from CI/CD!" ]; then
-            echo "Application test failed"
-            exit 1
-          fi
-          echo "Application test passed!"
+          sed "s/REPLACE_TAG/${{ github.event.workflow_run.head_sha }}/g" \
+            k8s/deployment.yaml > /tmp/git-practice-deployment.yaml
+
+      - name: Deploy to Kubernetes
+        run: |
+          sudo kubectl apply -f k8s/service.yaml
+          sudo kubectl apply -f /tmp/git-practice-deployment.yaml
+
+      - name: Wait for rollout
+        run: |
+          sudo kubectl rollout status deployment/git-practice --timeout=120s
+
+      - name: Verify deployment
+        run: |
+          sudo kubectl get deployment git-practice
+          sudo kubectl get pods -l app=git-practice -o wide
+          sudo kubectl get service git-practice-service
+
+      - name: Test application health
+        run: |
+          SERVICE_IP=$(sudo kubectl get service git-practice-service -o jsonpath='{.spec.clusterIP}')
+          curl --fail "http://${SERVICE_IP}/health"
